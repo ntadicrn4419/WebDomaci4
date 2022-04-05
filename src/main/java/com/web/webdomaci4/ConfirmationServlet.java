@@ -1,8 +1,8 @@
 package com.web.webdomaci4;
 
 import java.io.*;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.servlet.ServletException;
 import javax.servlet.http.*;
 import javax.servlet.annotation.*;
@@ -15,7 +15,7 @@ public class ConfirmationServlet extends HttpServlet {
 
     public void init() {
         this.message = "Uspesno ste odabrali meni za narednu nedelju!";
-        this.food = new HashMap<>();
+        this.food = new ConcurrentHashMap<>();
     }
 
     @Override
@@ -29,7 +29,6 @@ public class ConfirmationServlet extends HttpServlet {
         out.println("<html><body>");
         out.println("<h1>" + message + "</h1>");
         out.println("</body></html>");
-        this.message = "Uspesno ste odabrali meni za narednu nedelju!";//ovde moramo da restartujemo poruku, zato sto smo je menjali u doPost-u.
     }
 
     @Override
@@ -37,22 +36,21 @@ public class ConfirmationServlet extends HttpServlet {
 
         System.out.println("doPost in ConfirmationServlet");
 
-        if(request.getSession().getAttribute("ponedeljak") != null &&
-            request.getServletContext().getAttribute("restart") != "true"){
-
-            this.message = this.generatePickedMenuHtml(request);
-            response.sendRedirect("/potvrda");
-            return;
+        synchronized (this){
+            if(request.getSession().getAttribute("ponedeljak") != null &&
+                    request.getServletContext().getAttribute("restart") != "true"){
+                response.sendRedirect("/vec-odabrani-meni");
+                return;
+            }
         }
 
         this.fillFoodMap(request);
-        this.updateServletContextDaysAttributes(request);
+        this.updateServletContextAttributes(request);
         this.food.clear();
-        request.getServletContext().setAttribute("restart", "false");
         response.sendRedirect("/potvrda");
     }
 
-    private void updateServletContextDaysAttributes(HttpServletRequest request) {
+    private synchronized void updateServletContextAttributes(HttpServletRequest request) {
 
         String[] days = {"ponedeljak", "utorak", "sreda", "cetvrtak", "petak"};
         for(String day: days){
@@ -73,48 +71,16 @@ public class ConfirmationServlet extends HttpServlet {
                 request.getServletContext().setAttribute(day, map);
             }
         }
+        request.getServletContext().setAttribute("restart", "false");
     }
 
     private void fillFoodMap(HttpServletRequest request) {
 
         String[] days = {"ponedeljak", "utorak", "sreda", "cetvrtak", "petak"};
         for (String day: days) {
-            Map<String, Integer> dailyMenu = new HashMap<>();
+            Map<String, Integer> dailyMenu = new ConcurrentHashMap<>();
             dailyMenu.put(request.getParameter(day), 1);
             this.food.put(day, dailyMenu);
         }
-    }
-
-    private String generatePickedMenuHtml(HttpServletRequest request){
-
-        StringBuilder sb = new StringBuilder();
-        sb.append("<h1>Vec ste izabrali meni za narednu nedelju!</h1>");
-
-        sb.append("<h2>Ponedeljak:</h2>");
-        sb.append("<h3>");
-        sb.append(request.getSession().getAttribute("ponedeljak"));
-        sb.append("</h3><br>");
-
-        sb.append("<h2>Utorak:</h2>");
-        sb.append("<h3>");
-        sb.append(request.getSession().getAttribute("utorak"));
-        sb.append("</h3><br>");
-
-        sb.append("<h2>Sreda:</h2>");
-        sb.append("<h3>");
-        sb.append(request.getSession().getAttribute("sreda"));
-        sb.append("</h3><br>");
-
-        sb.append("<h2>Cetvrtak:</h2>");
-        sb.append("<h3>");
-        sb.append(request.getSession().getAttribute("cetvrtak"));
-        sb.append("</h3><br>");
-
-        sb.append("<h2>Petak:</h2>");
-        sb.append("<h3>");
-        sb.append(request.getSession().getAttribute("petak"));
-        sb.append("</h3><br>");
-
-        return sb.toString();
     }
 }
